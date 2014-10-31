@@ -1,0 +1,20 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2012
+Project("{f2a71f9b-5d33-465a-a702-920d77279786}") = "MudDer", "MudDer\MudDer.fsproj", "{9AEC2297-00FA-488F-8A49-42513D9B5350}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x86 = Debug|x86
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{9AEC2297-00FA-488F-8A49-42513D9B5350}.Debug|x86.ActiveCfg = Debug|x86
+		{9AEC2297-00FA-488F-8A49-42513D9B5350}.Debug|x86.Build.0 = Debug|x86
+		{9AEC2297-00FA-488F-8A49-42513D9B5350}.Release|x86.ActiveCfg = Release|x86
+		{9AEC2297-00FA-488F-8A49-42513D9B5350}.Release|x86.Build.0 = Release|x86
+	EndGlobalSection
+	GlobalSection(MonoDevelopProperties) = preSolution
+		StartupItem = MudDer\MudDer.fsproj
+	EndGlobalSection
+EndGlobal
