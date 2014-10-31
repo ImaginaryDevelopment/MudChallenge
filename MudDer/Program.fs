@@ -17,12 +17,25 @@ type State = { Room:string; Xp:int; Level:int; X:int; Y:int; MoveCount:int; Mons
     static member Initial = {Room="start"; Xp=0; Level =1; X=0; Y=0; MoveCount =0; Monster = None; Damage = Die.D4}
 type Event =
     | ArrivalMessage of string
+type Command = 
+    |West
+    |East
+    |Wait
+    |Attack
 
+//type Message = 
+//        |Query of AsyncReplyChannel<Reply>
+//        |Update of AccountUpdate*AsyncReplyChannel<Reply>
+// recieve = match message with 
+//                    | Query replyChannel -> 
+//                        replyChannel.Reply(Info(balance))
+//                    | (Update(AccountUpdate.BalanceChange(changeAmount),replyChannel)) ->
+// post = 
+//    mailbox.PostAndReply( fun replyChannel -> Query replyChannel)
+//    mailbox.PostAndReply( fun replyChannel -> Update(Open(doOpen),replyChannel))
 type Message = 
-    |West of State*AsyncReplyChannel<Reply*State>
-    |East of State*AsyncReplyChannel<Reply*State>
-    |Wait of State*AsyncReplyChannel<Reply*State>
-    |Attack of State*AsyncReplyChannel<Reply*State>
+    |Cmd of Command*State*AsyncReplyChannel<Reply*State>
+    //|East of State*AsyncReplyChannel<Reply*State>
 and
     Reply =
     | RoomChange
@@ -54,10 +67,10 @@ let main argv =
                     let! message = (* printfn"waiting for nextMessage"; *) inbox.Receive()
                     let msg (rc:AsyncReplyChannel<Reply*State>) (state:State) s = rc.Reply(Message s, {state with MoveCount = state.MoveCount + 1})
                     match message with
-                    |West(state,replyChannel) -> replyChannel.Reply( RoomChange,{state with Room = "west"})
-                    |East(state,replyChannel) -> replyChannel.Reply( if state.Room="west" then printfn "going west"; RoomChange,{state with Room = "start"} else Message "Can't go that way dave",state)
-                    |Wait(state,replyChannel) -> msg replyChannel state "What are you waiting for? This dungeon isn't going to explore itself"
-                    |Attack(state,replyChannel) -> 
+                    | Cmd(West,state,replyChannel) -> replyChannel.Reply( RoomChange,{state with Room = "west"})
+                    | Cmd(East,state,replyChannel) -> replyChannel.Reply( if state.Room="west" then printfn "going west"; RoomChange,{state with Room = "start"} else Message "Can't go that way dave",state)
+                    | Cmd(Wait,state,replyChannel) -> msg replyChannel state "What are you waiting for? This dungeon isn't going to explore itself"
+                    | Cmd(Attack,state,replyChannel) -> 
                         if state.Monster.IsSome then 
                             let monsterHealth = state.Monster.Value.Health - rng state.Damage
                             if monsterHealth <= 0 then
@@ -74,9 +87,13 @@ let main argv =
         processor
     let rec takeInput (rng:Die->int) (state:State) (s:string) : bool*State = 
         // printfn "Found input! %s" s
-        let op funCtor =Some <| fun replyChannel -> funCtor(state,replyChannel)
+        // post = 
+        //    mailbox.PostAndReply( fun replyChannel -> Query replyChannel)
+        //    mailbox.PostAndReply( fun replyChannel -> Update(Open(doOpen),replyChannel))
+
+        let op command  = Some <| fun replyChannel -> (Cmd( command ,state,replyChannel))
         let inputMap = match s.ToLowerInvariant() with 
-                                                                | "west" -> op West
+                                                                | "west" -> Some <| fun replyChannel -> Cmd( Command.West, state,replyChannel)
                                                                 | "east" -> op East
                                                                 | "quit" | "exit" -> (* printfn"found quit"; *) None
                                                                 | "attack" -> op Attack
