@@ -13,7 +13,7 @@ type Die=
 type Health
 
 // See the 'F# Tutorial' project for more help.
-type Monster = { Health:int<Health>; Name:string; (* THAC0: byte;*) Dmg: Die*byte seq}
+type Monster = { Health:int<Health>; Name:string; (* THAC0: byte;*) Dmg: Die (* *byte seq *) }
 
 type State = { Room:string; Xp:int; Level:int; X:int; Y:int; MoveCount:int; Monster:Monster option; Health: int<Health>; Damage: Die} with
     static member Initial = {Room="start"; Xp=0; Level =1; X=0; Y=0;Health = 4<Health>; MoveCount =0; Monster = None; Damage = Die.D4}
@@ -82,9 +82,16 @@ let main argv =
                             if monsterHealth <= 0<_> then
                                 let result = {state with Xp = state.Xp + 1; MoveCount = state.MoveCount+1; Monster = None }
                                 msg replyChannel result <| sprintf " You hit %s and have slain it" state.Monster.Value.Name
+                            else
+                                let monsterDamage = 1<Health> * (rng(state.Monster.Value.Dmg))
+                                let playerHealth = state.Health -  monsterDamage
+                                let result = { state with Health = playerHealth }
+                                if playerHealth > 1<Health> then
+                                    msg replyChannel result "The Monster attacks you!"  //counter attack
+                                else
+                                    replyChannel.Reply( Death <| sprintf "The monster hit for %A which was far too hard for your little head." monsterDamage,result)
                         else
-                            let result = { state with Health = state.Health }
-                            msg replyChannel state "The Monster attacks you!"  //counter attack
+                            msg replyChannel state "You're attacking the darkness. It just stands there, darkly."
 
                     do! loop()
                 }
@@ -92,7 +99,7 @@ let main argv =
             loop())
         processor.Start()
         processor
-    let rec takeInput (rng:Die->int) (state:State) (s:string) : bool*State = 
+    let rec takeInput (state:State) (s:string) : bool*State = 
 
         let op command  = Some <| fun replyChannel -> ( command ,state,replyChannel)
         let inputMap = match s.ToLowerInvariant() with 
@@ -112,7 +119,7 @@ let main argv =
 
     let rec msgPump (state:State):State option = 
         //printfn "unfolding!"
-        let shouldContinue,newState = printfn "Command?"; takeInput rng state <| Console.ReadLine()
+        let shouldContinue,newState = printfn "Command?"; takeInput state <| Console.ReadLine()
         //Console.Out.Flush()
         //System.Threading.Thread.Sleep(100)
         if shouldContinue then (* printfn "continuing adventure!"; *) msgPump newState
