@@ -83,7 +83,7 @@ let main argv =
             |South -> map |> Seq.length < state.Y+1, {state with Room = "A southern looking room"; Y = state.Y+1;MoveCount = state.MoveCount+1}
 
         if condition && map.[movedState.Y].[movedState.X] = 1 then 
-            printfn "moved into %s (%A, %A)" movedState.Room movedState.X movedState.Y
+            printfn "moved to (%A, %A)" movedState.X movedState.Y
             Some movedState
         else 
             cant()
