@@ -68,6 +68,10 @@ let main argv =
             [ 1;1;1;0;1;0;0;0;1]
             [ 0;1;0;1;1;1;1;0;1]
             [ 1;1;1;1;0;1;1;1;1]
+            [ 1;0;1;0;0;0;0;0;1]
+            [ 1;0;1;0;0;0;0;0;1]
+            [ 0;0;1;0;1;1;1;1;1;1;1]
+            [ 1;1;1;0;1;0;0;0;1]
         ]
 
     //static events
@@ -168,7 +172,10 @@ let main argv =
                             // did not move
                             msg postEventState <| sprintf "(noreply)moved to (%A, %A)" postEventState.X postEventState.Y
                     
-                    | Wait -> msg initialState "What are you waiting for? This dungeon isn't going to explore itself"
+                    | Wait -> 
+                        if initialState.Monster.IsSome then 
+                            msg initialState <| sprintf "The %A would like to finish, what are you waiting for?" initialState.Monster.Value 
+                        else msg initialState "What are you waiting for? This dungeon isn't going to explore itself"
                     | Attack -> 
                         if initialState.Monster.IsSome then 
                             let monsterHealth = initialState.Monster.Value.Health - 1<Health> * rng initialState.Damage
@@ -214,6 +221,7 @@ let main argv =
                                                                 | "east" -> op <| Command.Move Move.East
                                                                 | "north" -> op <| Command.Move Move.North
                                                                 | "south" -> op <| Command.Move Move.South
+                                                                | "stats" -> printfn "Health: %A, Xp:%A, X:%A, Y:%A" state.Health state.Xp state.X state.Y; op Wait
                                                                 | "quit" | "exit" -> (* printfn"found quit"; *) None
                                                                 | "attack" -> op Attack
                                                                 |_ -> (* printfn "no op";*) op Wait
