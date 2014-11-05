@@ -9,6 +9,7 @@ type Die=
     | D8 = 8
     | D10 = 10
     | D20 = 20
+
 type Monster = { Health:int<Health>; Name:string; (* THAC0: byte;*) Dmg: Die (* *byte seq *) }
 
 type State = { Room:string; Xp:int; Level:int; X:int; Y:int; MoveCount:int; Monster:Monster option; Health: int<Health>; Damage: Die} with
@@ -24,7 +25,6 @@ type Event =
     //| MonsterArrival of Monster
     | TreasureFound of Treasure
 
-
 type Move =
     |West
     |East
@@ -36,11 +36,10 @@ type Command =
     |Wait
     |Attack
 
-type Message = Command*State*AsyncReplyChannel<Reply*State>
-    //|East of State*AsyncReplyChannel<Reply*State>
-and
-    Reply =
+type Reply =
     | RoomChange
     | Msg of string
     | Death of string
     | Exception of Command * System.Exception
+
+type Message = Command*State*AsyncReplyChannel<Reply*State>

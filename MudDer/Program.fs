@@ -3,14 +3,20 @@
 open MudDer.Schema
 open MudDer.Movement
 // See the 'F# Tutorial' project for more help.
-
+type Color = System.ConsoleColor
 
 //let monsterEncounter<'T when 'T :> IRandomizer>  (rnd:'T) = 
 let generateMonsters (rnd : int -> int) = 
     [
-        {Monster.Health= (rnd(1)) * 1<Health> + 1<Health>; Dmg = Die.D4; Name="Goblin"}
-        {Monster.Health= (rnd(1)) * 1<Health> + 4<Health>; Dmg = Die.D6; Name="HobGoblin"}
+        {Monster.Health= (rnd(1)) * 1<Health> + 1<Health>; Dmg = Die.D2; Name="Goblin"}
+        {Monster.Health= (rnd(1)) * 1<Health> + 4<Health>; Dmg = Die.D4; Name="HobGoblin"}
     ] 
+
+let printfnColor msg color = 
+    let prevColor = System.Console.ForegroundColor
+    System.Console.ForegroundColor <- color
+    printfn "%s" msg
+    System.Console.ForegroundColor <- prevColor
 
 let getRandomMonster (rnd : int -> int) monsters = 
     monsters |> Array.ofSeq |> (fun array -> array.[rnd(array.Length)])
@@ -50,7 +56,7 @@ let main argv =
             let playerHealth = state.Health -  monsterDamage
             let result = { state with Health = playerHealth }
             if playerHealth > 1<Health> then
-                printfn "The Monster hits you for %A!"  monsterDamage
+                printfnColor <| sprintf "The Monster hits you for %A!"  monsterDamage <| Color.Red
                 None, result
             else
                 let reply = Death <| sprintf "The monster hit for %A which was far too hard for your little head." monsterDamage
@@ -64,11 +70,11 @@ let main argv =
 
             if monsterHealth <= 0<_> then
                 let result = {state with Xp = state.Xp + 1; MoveCount = state.MoveCount+1; Monster = None }
-                printfn "you killed a %A" state.Monster.Value.Name
-                // sprintf " You hit %s for %A damage and have slain it" initialState.Monster.Value.Name playerDamage
+
+                printfnColor <| sprintf "You hit %s for %A damage and have slain it" state.Monster.Value.Name playerDamage <| Color.DarkGreen
                 result
             else
-                printfn "you hit for %A" playerDamage
+                printfnColor <| sprintf "you hit for %A" playerDamage <| Color.Green
                 { state with Monster = Some {state.Monster.Value with Health = monsterHealth }}
 
     let removeMonster state = {state with Monster = None}
@@ -122,14 +128,15 @@ let main argv =
     let rec takeInput (state:State) (s:string) : bool*State = 
 
         let op (command:Command)  = Some <| fun replyChannel -> ( command ,state,replyChannel)
+        let move dir = op <| Command.Move dir
         let inputMap = match s.ToLowerInvariant() with 
-                                                                | "west" -> op <| Command.Move Move.West // Some <| fun replyChannel -> Command.Move Move.West, state,replyChannel
-                                                                | "east" -> op <| Command.Move Move.East
-                                                                | "north" -> op <| Command.Move Move.North
-                                                                | "south" -> op <| Command.Move Move.South
-                                                                | "stats" -> printfn "Health: %A, Xp:%A, X:%A, Y:%A" state.Health state.Xp state.X state.Y; op Wait
+                                                                | "west" | "w" -> move Move.West // Some <| fun replyChannel -> Command.Move Move.West, state,replyChannel
+                                                                | "east" | "e" -> move Move.East
+                                                                | "north"| "n" -> move Move.North
+                                                                | "south"| "s" -> move  Move.South
+                                                                | "stats"| "st" -> printfn "Health: %A, Xp:%A, X:%A, Y:%A" state.Health state.Xp state.X state.Y; op Wait
                                                                 | "quit" | "exit" | "q" -> (* printfn"found quit"; *) None
-                                                                | "attack" -> op Attack
+                                                                | "attack" | "hit" |"a" -> op Attack
                                                                 |_ -> (* printfn "no op";*) op Wait
         match inputMap with 
         |Some msg -> 
@@ -139,17 +146,13 @@ let main argv =
                                | Msg s -> printfn "%s" s; true, newState
                                | Exception (cmd, ex) -> printfn "Failed to process cmd '%A' input exception was %A" cmd ex;  false, newState
                                | Death s -> printfn "%s" s; false, newState
-                               | _ -> true, newState
+                               //| _ -> true, newState
         |None -> false,state
 
     let rec msgPump (state:State):State option = 
-        //printfn "unfolding!"
         let shouldContinue,newState = printfn "Command?"; takeInput state <| Console.ReadLine()
-        //Console.Out.Flush()
-        //System.Threading.Thread.Sleep(100)
         if shouldContinue then (* printfn "continuing adventure!"; *) msgPump newState
         else printfn "quitting!"; None
-    //printfn "Preparing to unfold!"
     let initialState = State.Initial
     msgPump initialState |> ignore
     printfn "msgPump finished, waiting for any key to exit"
