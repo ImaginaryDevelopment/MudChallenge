@@ -11,22 +11,9 @@ let generateMonsters (rnd : int -> int) =
         {Monster.Health= (rnd(1)) * 1<Health> + 1<Health>; Dmg = Die.D4; Name="Goblin"}
         {Monster.Health= (rnd(1)) * 1<Health> + 4<Health>; Dmg = Die.D6; Name="HobGoblin"}
     ] 
+
 let getRandomMonster (rnd : int -> int) monsters = 
     monsters |> Array.ofSeq |> (fun array -> array.[rnd(array.Length)])
-
-
-
-//type Message = 
-//        |Query of AsyncReplyChannel<Reply>
-//        |Update of AccountUpdate*AsyncReplyChannel<Reply>
-// recieve = match message with 
-//                    | Query replyChannel -> 
-//                        replyChannel.Reply(Info(balance))
-//                    | (Update(AccountUpdate.BalanceChange(changeAmount),replyChannel)) ->
-// post = 
-//    mailbox.PostAndReply( fun replyChannel -> Query replyChannel)
-//    mailbox.PostAndReply( fun replyChannel -> Update(Open(doOpen),replyChannel))
-
 
 [<EntryPoint>]
 let main argv = 
@@ -45,12 +32,6 @@ let main argv =
             [ 1;1;1;0;1;0;0;0;1]
         ]
 
-    //static events
-
-
-        //let movedState = {state with Room = "another sad room title"; X=state.X+1; MoveCount= state.MoveCount + 1}
-
-
     let monsterChanceEvent monsters state = 
         if state.Monster.IsNone then
             let roll = rnd.Next(4)
@@ -63,25 +44,33 @@ let main argv =
         else state
 
     let monsterAttack state: Reply option * State =
-        let monsterDamage = 1<Health> * (rng(state.Monster.Value.Dmg))
-        let playerHealth = state.Health -  monsterDamage
-        let result = { state with Health = playerHealth }
-        if playerHealth > 1<Health> then
-            printfn "The Monster hits you for %A!"  monsterDamage
-            None, result
+        if state.Monster.IsNone then None,state 
         else
-            let reply = Death <| sprintf "The monster hit for %A which was far too hard for your little head." monsterDamage
-            Some reply,result
+            let monsterDamage = 1<Health> * (rng(state.Monster.Value.Dmg))
+            let playerHealth = state.Health -  monsterDamage
+            let result = { state with Health = playerHealth }
+            if playerHealth > 1<Health> then
+                printfn "The Monster hits you for %A!"  monsterDamage
+                None, result
+            else
+                let reply = Death <| sprintf "The monster hit for %A which was far too hard for your little head." monsterDamage
+                Some reply,result
 
     let playerAttack state : State = 
-        let playerDamage = 1<Health> * rng state.Damage
-        let monsterHealth = state.Monster.Value.Health - playerDamage
-
-        if monsterHealth <= 0<_> then
-            let result = {state with Xp = state.Xp + 1; MoveCount = state.MoveCount+1; Monster = None }
-            result
+        if state.Monster.IsNone then printfn "You're attacking the darkness. It just stands there, darkly."; state 
         else
-            { state with Monster = Some {state.Monster.Value with Health = monsterHealth }} // <| sprint " You hit %s for %A damage."
+            let playerDamage = 1<Health> * rng state.Damage
+            let monsterHealth = state.Monster.Value.Health - playerDamage
+
+            if monsterHealth <= 0<_> then
+                let result = {state with Xp = state.Xp + 1; MoveCount = state.MoveCount+1; Monster = None }
+                printfn "you killed a %A" state.Monster.Value.Name
+                // sprintf " You hit %s for %A damage and have slain it" initialState.Monster.Value.Name playerDamage
+                result
+            else
+                printfn "you hit for %A" playerDamage
+                { state with Monster = Some {state.Monster.Value with Health = monsterHealth }}
+
     let removeMonster state = {state with Monster = None}
 
     let processCommand monsters cmd initialState : Reply*State = 
@@ -101,21 +90,11 @@ let main argv =
                             msg initialState <| sprintf "The %A would like to finish, what are you waiting for?" initialState.Monster.Value.Name 
                         else msg initialState "What are you waiting for? This dungeon isn't going to explore itself"
                     | Attack -> 
-                        if initialState.Monster.IsSome then 
-                            let playerDamage = rng initialState.Damage
-                            let monsterHealth = initialState.Monster.Value.Health - 1<Health> * playerDamage
-                            if monsterHealth <= 0<_> then
-                                let result = {initialState with Xp = initialState.Xp + 1; MoveCount = initialState.MoveCount+1; Monster = None }
-                                msg result <| sprintf " You hit %s for %A damage and have slain it" initialState.Monster.Value.Name playerDamage
-                            else
-                                let replyOpt,state = monsterAttack initialState
-                                if replyOpt.IsSome then
-                                    replyOpt.Value,state
-                                else
-                                    msg state "and now"
+                        let replyOpt,combatResolvedState = initialState |> (playerAttack >> monsterAttack)
+                        if replyOpt.IsSome then
+                            replyOpt.Value,combatResolvedState
                         else
-                            msg initialState "You're attacking the darkness. It just stands there, darkly."
-                                
+                            msg combatResolvedState "and now?"
                         
     let mailbox = 
         let processor = new MailboxProcessor<Message>(fun inbox ->
