@@ -1,42 +1,20 @@
 ﻿open System
 
-type Die=
-    | D2 = 2
-    | D4 = 4
-    | D6 = 6
-    | D8 = 8
-    | D10 = 10
-    | D20 = 20
-    //with 
-    //member x.Roll (rng:int->int) = rng(x)
-[<Measure>]
-type Health
-
+open MudDer.Schema
+open MudDer.Movement
 // See the 'F# Tutorial' project for more help.
-type Monster = { Health:int<Health>; Name:string; (* THAC0: byte;*) Dmg: Die (* *byte seq *) }
 
-type State = { Room:string; Xp:int; Level:int; X:int; Y:int; MoveCount:int; Monster:Monster option; Health: int<Health>; Damage: Die} with
-    static member Initial = {Room="start"; Xp=0; Level =1; X=0; Y=0;Health = 4<Health>; MoveCount =0; Monster = None; Damage = Die.D4}
 
-type Treasure =
-    |Health of Die
-    |Xp of Die
+//let monsterEncounter<'T when 'T :> IRandomizer>  (rnd:'T) = 
+let generateMonsters (rnd : int -> int) = 
+    [
+        {Monster.Health= (rnd(1)) * 1<Health> + 1<Health>; Dmg = Die.D4; Name="Goblin"}
+        {Monster.Health= (rnd(1)) * 1<Health> + 4<Health>; Dmg = Die.D6; Name="HobGoblin"}
+    ] 
+let getRandomMonster (rnd : int -> int) monsters = 
+    monsters |> Array.ofSeq |> (fun array -> array.[rnd(array.Length)])
 
-type Event =
-    | ArrivalMessage of string
-    //| MonsterArrival of Monster
-    | TreasureFound of Treasure
 
-type Move =
-    |West
-    |East
-    |North
-    |South
-
-type Command = 
-    |Move of Move
-    |Wait
-    |Attack
 
 //type Message = 
 //        |Query of AsyncReplyChannel<Reply>
@@ -48,14 +26,7 @@ type Command =
 // post = 
 //    mailbox.PostAndReply( fun replyChannel -> Query replyChannel)
 //    mailbox.PostAndReply( fun replyChannel -> Update(Open(doOpen),replyChannel))
-type Message = Command*State*AsyncReplyChannel<Reply*State>
-    //|East of State*AsyncReplyChannel<Reply*State>
-and
-    Reply =
-    | RoomChange
-    | Msg of string
-    | Death of string
-    | Exception of Command*Exception
+
 
 [<EntryPoint>]
 let main argv = 
@@ -75,51 +46,17 @@ let main argv =
         ]
 
     //static events
-    let events = 
-        [ 
-            0,1, Event.ArrivalMessage ("Welcome to the jungle.") // test message to see if they are working
-        ]
 
-    let checkArrivalEvent state : State = 
-        printfn "checking for an arrival event"
-        let event = events |> Seq.tryFind(fun (x,y,_) -> x = state.X && y = state.Y )
-        if event.IsSome then
-            let _,_,info = event.Value
-            match info with
-            | ArrivalMessage s -> printfn "Arriving at LaGuardia, just kidding it's %s" s; state
-            | TreasureFound treasure -> 
-                match treasure with
-                |Xp d -> 
-                    let xp = rng d
-                    printfn "Found Artifact worth %i experience " xp
-                    {state with Xp= state.Xp + xp}
-                |Health d ->
-                    let health = rng d * 1<Health>
-                    printfn "Found Magic potion, healed for %A " health
-                    {state with Health= state.Health + health}
-        else
-            state
 
         //let movedState = {state with Room = "another sad room title"; X=state.X+1; MoveCount= state.MoveCount + 1}
-    let escapeMonsterMove state cant (playerAttack:State->State) (monsterAttack:State -> Reply option * State): Reply option * State = // reply if the escape attempt is blocked
-        if state.Monster.IsSome then
-            match rng Die.D6 with
-            | 1 | 2  -> None,state // escape
-            | 3 | 4 -> Msg <| sprintf "Your escape attempt is blocked by %s" state.Monster.Value.Name |> (fun r -> Some r,state)
-            | 5 -> 
-                monsterAttack state
-            | 6 -> 
-                let newState = playerAttack state // Riposte
-                None, newState
-            | _ -> failwithf "escape monster move failure, out of bounds"
-        else None,state
 
-    let monsterChanceEvent state = 
+
+    let monsterChanceEvent monsters state = 
         if state.Monster.IsNone then
             let roll = rnd.Next(4)
             printfn "Checking for monsters, rolled a %A" roll
             if roll = 3 then
-                let newState = {state with Monster= Some {Monster.Health= (rnd.Next(1)) * 1<Health> + 1<Health>; Dmg = Die.D2; Name="Goblin"}}
+                let newState = {state with Monster = Some <| getRandomMonster rnd.Next monsters}
                 printfn "A %s wanders in!" newState.Monster.Value.Name
                 newState
             else state
@@ -145,43 +82,31 @@ let main argv =
             result
         else
             { state with Monster = Some {state.Monster.Value with Health = monsterHealth }} // <| sprint " You hit %s for %A damage."
+    let removeMonster state = {state with Monster = None}
 
-    let moveEvent move initialState cant : Reply option * State = 
-        let replyOpt,state = if initialState.Monster.IsSome then escapeMonsterMove initialState cant playerAttack monsterAttack else None,initialState
-        let condition,movedState = 
-            match move with
-            |West -> state.X>0, {state with Room = "another sad room title"; X=state.X-1; MoveCount= state.MoveCount + 1}
-            |East -> state.X < map.[state.Y].Length, {state with Room = "another sad room title"; X=state.X+1; MoveCount= state.MoveCount + 1}
-            |North -> state.Y > 0, {state with Room = "A northern looking room"; Y = state.Y-1;MoveCount = state.MoveCount+1}
-            |South -> state.Y+1< Seq.length map, {state with Room = "A southern looking room"; Y = state.Y+1;MoveCount = state.MoveCount+1}
-
-        if condition && map.[movedState.Y].[movedState.X] = 1 then 
-            printfn "moved to (%A, %A)" movedState.X movedState.Y
-            None,movedState |> checkArrivalEvent |> monsterChanceEvent
-        else 
-            (Some (cant())),state
-    let processCommand cmd initialState : Reply*State = 
+    let processCommand monsters cmd initialState : Reply*State = 
         let replyCant () = Msg "I'm afraid I can't let you go that way dave"
         let msg (state:State) s = Msg s, {state with MoveCount = state.MoveCount + 1}
         match cmd with
                     | Move dir -> 
-                        let replyOpt,postEventState = moveEvent dir initialState replyCant
+                        let replyOpt,postEventState = moveEvent replyCant monsters dir initialState playerAttack monsterAttack map (checkArrivalEvent rng ) monsterChanceEvent removeMonster rng 
                         if replyOpt.IsSome then 
-                            replyOpt.Value,postEventState |> monsterChanceEvent
+                            replyOpt.Value,postEventState |> monsterChanceEvent monsters
                         else
                             // did not move
                             msg postEventState <| sprintf "(noreply)moved to (%A, %A)" postEventState.X postEventState.Y
                     
                     | Wait -> 
                         if initialState.Monster.IsSome then 
-                            msg initialState <| sprintf "The %A would like to finish, what are you waiting for?" initialState.Monster.Value 
+                            msg initialState <| sprintf "The %A would like to finish, what are you waiting for?" initialState.Monster.Value.Name 
                         else msg initialState "What are you waiting for? This dungeon isn't going to explore itself"
                     | Attack -> 
                         if initialState.Monster.IsSome then 
-                            let monsterHealth = initialState.Monster.Value.Health - 1<Health> * rng initialState.Damage
+                            let playerDamage = rng initialState.Damage
+                            let monsterHealth = initialState.Monster.Value.Health - 1<Health> * playerDamage
                             if monsterHealth <= 0<_> then
                                 let result = {initialState with Xp = initialState.Xp + 1; MoveCount = initialState.MoveCount+1; Monster = None }
-                                msg result <| sprintf " You hit %s and have slain it" initialState.Monster.Value.Name
+                                msg result <| sprintf " You hit %s for %A damage and have slain it" initialState.Monster.Value.Name playerDamage
                             else
                                 let replyOpt,state = monsterAttack initialState
                                 if replyOpt.IsSome then
@@ -194,6 +119,8 @@ let main argv =
                         
     let mailbox = 
         let processor = new MailboxProcessor<Message>(fun inbox ->
+            let monsters = generateMonsters rnd.Next
+            let commandProcessor = processCommand monsters
             let rec loop() = 
                 async{
                     
@@ -201,7 +128,7 @@ let main argv =
                     let cmd, initialState, replyChannel = message
                     let reply,state = 
                         try
-                            processCommand cmd initialState
+                            commandProcessor cmd initialState
                         with ex -> Exception (cmd, ex), initialState
 
                     //let msg (rc:AsyncReplyChannel<Reply*State>) (state:State) s = rc.Reply(Msg s, {state with MoveCount = state.MoveCount + 1})
@@ -222,7 +149,7 @@ let main argv =
                                                                 | "north" -> op <| Command.Move Move.North
                                                                 | "south" -> op <| Command.Move Move.South
                                                                 | "stats" -> printfn "Health: %A, Xp:%A, X:%A, Y:%A" state.Health state.Xp state.X state.Y; op Wait
-                                                                | "quit" | "exit" -> (* printfn"found quit"; *) None
+                                                                | "quit" | "exit" | "q" -> (* printfn"found quit"; *) None
                                                                 | "attack" -> op Attack
                                                                 |_ -> (* printfn "no op";*) op Wait
         match inputMap with 
