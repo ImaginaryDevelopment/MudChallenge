@@ -134,10 +134,11 @@ let main argv =
         match inputMap with 
         |Some msg -> 
                     let reply,newState  = mailbox.PostAndReply inputMap.Value
-                    match reply,newState with
-                               | RoomChange,_ -> true,newState
-                               | Msg s,_ -> printfn "%s" s; true, newState
-                               | Exception (cmd, ex), newState -> printfn "Failed to process cmd '%A' input exception was %A" cmd ex;  false, newState
+                    match reply with
+                               | RoomChange -> true,newState
+                               | Msg s -> printfn "%s" s; true, newState
+                               | Exception (cmd, ex) -> printfn "Failed to process cmd '%A' input exception was %A" cmd ex;  false, newState
+                               | Death s -> printfn "%s" s; false, newState
                                | _ -> true, newState
         |None -> false,state
 
