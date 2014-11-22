@@ -9,7 +9,7 @@ type Color = System.ConsoleColor
 let generateMonsters (rnd : int -> int) = 
     [
         {Monster.Health= (rnd(1)) * 1<Health> + 1<Health>; Dmg = Die.D2; Name="Goblin"}
-        {Monster.Health= (rnd(1)) * 1<Health> + 4<Health>; Dmg = Die.D4; Name="HobGoblin"}
+        {Monster.Health= (rnd(3)) * 1<Health> + 2<Health>; Dmg = Die.D4; Name="HobGoblin"}
     ] 
 
 let printfnColor msg color = 
@@ -25,7 +25,7 @@ let getRandomMonster (rnd : int -> int) monsters =
 let main argv = 
     printfn "%A" argv
     let rnd = Random()
-    let rng (d:Die) = rnd.Next(int(d)) + 1
+    let rng (d:Die) = int(d) |> rnd.Next |> (+) 1
     let map = 
         [
             [ 1;0;1;0;1;0;0;1;1]
@@ -90,7 +90,6 @@ let main argv =
                         else
                             // did not move
                             msg postEventState <| sprintf "(noreply)moved to (%A, %A)" postEventState.X postEventState.Y
-                    
                     | Wait -> 
                         if initialState.Monster.IsSome then 
                             msg initialState <| sprintf "The %A would like to finish, what are you waiting for?" initialState.Monster.Value.Name 
@@ -129,24 +128,25 @@ let main argv =
 
         let op (command:Command)  = Some <| fun replyChannel -> ( command ,state,replyChannel)
         let move dir = op <| Command.Move dir
-        let inputMap = match s.ToLowerInvariant() with 
-                                                                | "west" | "w" -> move Move.West // Some <| fun replyChannel -> Command.Move Move.West, state,replyChannel
-                                                                | "east" | "e" -> move Move.East
-                                                                | "north"| "n" -> move Move.North
-                                                                | "south"| "s" -> move  Move.South
-                                                                | "stats"| "st" -> printfn "Health: %A, Xp:%A, X:%A, Y:%A" state.Health state.Xp state.X state.Y; op Wait
-                                                                | "quit" | "exit" | "q" -> (* printfn"found quit"; *) None
-                                                                | "attack" | "hit" |"a" -> op Attack
-                                                                |_ -> (* printfn "no op";*) op Wait
+        let inputMap = 
+            match s.ToLowerInvariant() with 
+            | "west" | "w" -> move Move.West // Some <| fun replyChannel -> Command.Move Move.West, state,replyChannel
+            | "east" | "e" -> move Move.East
+            | "north"| "n" -> move Move.North
+            | "south"| "s" -> move  Move.South
+            | "stats"| "st" -> printfn "Health: %A, Xp:%A, X:%A, Y:%A" state.Health state.Xp state.X state.Y; op Wait
+            | "quit" | "exit" | "q" -> (* printfn"found quit"; *) None
+            | "attack" | "hit" |"a" -> op Attack
+            |_ -> (* printfn "no op";*) op Wait
         match inputMap with 
         |Some msg -> 
-                    let reply,newState  = mailbox.PostAndReply inputMap.Value
-                    match reply with
-                               | RoomChange -> true,newState
-                               | Msg s -> printfn "%s" s; true, newState
-                               | Exception (cmd, ex) -> printfn "Failed to process cmd '%A' input exception was %A" cmd ex;  false, newState
-                               | Death s -> printfn "%s" s; false, newState
-                               //| _ -> true, newState
+            let reply,newState  = mailbox.PostAndReply msg
+            match reply with
+            | RoomChange -> true,newState
+            | Msg s -> printfn "%s" s; true, newState
+            | Exception (cmd, ex) -> printfn "Failed to process cmd '%A' input exception was %A" cmd ex;  false, newState
+            | Death s -> printfn "%s" s; false, newState
+            //| _ -> true, newState
         |None -> false,state
 
     let rec msgPump (state:State):State option = 
