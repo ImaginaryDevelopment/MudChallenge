@@ -69,8 +69,10 @@ let main argv =
             let monsterHealth = state.Monster.Value.Health - playerDamage
 
             if monsterHealth <= 0<_> then
-                let result = {state with Xp = state.Xp + 1; MoveCount = state.MoveCount+1; Monster = None }
-
+                let result = 
+                    let temp = {state with Xp = state.Xp + 1; MoveCount = state.MoveCount+1; Monster = None }
+                    let xpResult = if temp.Xp > temp.Level * 2 then {temp with Xp=0; Level= temp.Level + 1; Health = temp.Health+ temp.Level * 1<Health>} else temp
+                    xpResult
                 printfnColor <| sprintf "You hit %s for %A damage and have slain it" state.Monster.Value.Name playerDamage <| Color.DarkGreen
                 result
             else
