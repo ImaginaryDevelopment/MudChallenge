@@ -35,6 +35,7 @@ type Command =
     |Move of Move
     |Wait
     |Attack
+    |Load of State
 
 type Reply =
     | RoomChange

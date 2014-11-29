@@ -4,7 +4,10 @@ open MudDer.Schema
 open MudDer.Movement
 // See the 'F# Tutorial' project for more help.
 type Color = System.ConsoleColor
-
+type System.String with
+    member x.Before (delimiter:string) = x.Substring(0, x.IndexOf(delimiter))
+    member x.After (delimiter:string) = x.Substring(x.IndexOf(delimiter) + delimiter.Length)
+    member x.BeforeOrSelf (delimiter:string) = if x.Contains delimiter then x.Before delimiter else x
 //let monsterEncounter<'T when 'T :> IRandomizer>  (rnd:'T) = 
 let generateMonsters (rnd : int -> int) = 
     [
@@ -102,6 +105,8 @@ let main argv =
                             replyOpt.Value,combatResolvedState
                         else
                             msg combatResolvedState "and now?"
+                    | Load(loadState) -> Msg "loaded", loadState
+                        
                         
     let mailbox = 
         let processor = new MailboxProcessor<Message>(fun inbox ->
@@ -131,11 +136,16 @@ let main argv =
         let op (command:Command)  = Some <| fun replyChannel -> ( command ,state,replyChannel)
         let move dir = op <| Command.Move dir
         let inputMap = 
-            match s.ToLowerInvariant() with 
+            match s.ToLowerInvariant().BeforeOrSelf(" ") with 
             | "west" | "w" -> move Move.West // Some <| fun replyChannel -> Command.Move Move.West, state,replyChannel
             | "east" | "e" -> move Move.East
+            | "load" | "l" -> 
+                let rawState = s.After(s.BeforeOrSelf(" "))
+                let loadState = Newtonsoft.Json.JsonConvert.DeserializeObject<State>(rawState)
+                Command.Load <| loadState |> op
             | "north"| "n" -> move Move.North
             | "south"| "s" -> move  Move.South
+            | "save" | "sa" -> printfn "%A" state; printfn "%s" <| Newtonsoft.Json.JsonConvert.SerializeObject(state); op Wait
             | "stats"| "st" -> printfn "Health: %A, Xp:%A, X:%A, Y:%A" state.Health state.Xp state.X state.Y; op Wait
             | "quit" | "exit" | "q" -> (* printfn"found quit"; *) None
             | "attack" | "hit" |"a" -> op Attack
